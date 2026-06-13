@@ -10,6 +10,10 @@ A 4D project that wraps [GitHub Copilot](https://github.com/mesopelagique/Copilo
 |--------|------|-------------|
 | `GET`  | `/v1/models` | Lists available Copilot models in OpenAI format |
 | `POST` | `/v1/chat/completions` | Chat completions (JSON and SSE streaming supported) |
+| `GET`  | `/sessions` | Lists saved conversations (id, title, model, timestamps) for the sidebar |
+| `GET`  | `/sessions/{id}/messages` | Returns the stored transcript of one conversation |
+| `DELETE` | `/sessions/{id}` | Deletes a conversation (store, memory and Copilot disk session) |
+| `PATCH` | `/sessions/{id}` | Renames a conversation (JSON body `{ "title": "…" }`) |
 | `GET`  | `/chat` | Bundled web chat page (`copilot-chat.html` in the web root) |
 
 ## Dependencies
@@ -24,6 +28,26 @@ Each HTTP session maps to one persistent Copilot session (conversation state is 
 1. `X-Copilot-Session` request header
 2. 4D web `Session.id`
 3. Falls back to `"default"`
+
+The chat page sends the durable Copilot session id (returned in the `X-Copilot-Session-Id`
+response header) as `X-Copilot-Session` on follow-up turns. Send `new` (or omit the header)
+to start a fresh conversation.
+
+## Conversation persistence
+
+Conversations survive page refreshes, tab closes and even a 4D server restart, on two layers:
+
+- **Model context** — the Copilot CLI runtime already persists every session to disk. When a
+  known conversation id arrives but no live session is in memory (e.g. after a restart), the
+  service calls `resumeSession` to bring the full context back, instead of starting over.
+- **Display transcript** — a JSON file, `copilot-conversations.json` in the **data folder**
+  (gitignored), holds the conversation list (id, title, model, timestamps) and the user/assistant
+  messages shown in the UI. It is read and written only inside the `CopilotChat` worker, so access
+  is naturally serialized. The transcript is the source of truth for `/sessions/{id}/messages`.
+
+The bundled web page renders this as a left sidebar: pick a conversation to reload it, rename
+or delete entries, and start new ones. The active conversation id is kept in the browser's
+`localStorage` so a refresh reopens the same conversation.
 
 ## Configuration
 
@@ -72,6 +96,8 @@ read-only auto-approve → **ask** → `defaultDecision`.
 
 | Class | Description |
 |-------|-------------|
-| [`CopilotChatHTTPHandler`](Documentation/Classes/CopilotChatHTTPHandler.md) | HTTP request handlers — routes incoming requests and returns responses |
+| [`CopilotChatHTTPHandler`](Documentation/Classes/CopilotChatHTTPHandler.md) | OpenAI-compatible API handlers — `/v1/chat/completions`, `/v1/models` |
+| [`CopilotChatWebHandler`](Documentation/Classes/CopilotChatWebHandler.md) | Chat web interface handlers — `/chat` page and `/sessions` CRUD |
+| `CopilotChatHTTPHandlerBase` | Shared base — worker dispatch and error-response helpers for both handlers |
 | [`CopilotChatService`](Documentation/Classes/CopilotChatService.md) | Worker singleton — manages Copilot client and per-session state |
 | [`ToolPermissions`](Documentation/Classes/ToolPermissions.md) | Allow/deny/ask tool policy — decides which tool & shell requests a session may run |

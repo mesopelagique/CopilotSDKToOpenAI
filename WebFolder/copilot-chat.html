@@ -6,26 +6,62 @@
 <title>Copilot Chat — 4D</title>
 <style>
 	:root {
-		--bg: #f5f6f8; --panel: #ffffff; --text: #1c1e21; --muted: #6b7280;
-		--accent: #0969da; --user: #dbeafe; --assistant: #ffffff; --border: #e2e4e8;
+		--bg: #f5f6f8; --panel: #ffffff; --sidebar: #f0f1f4; --text: #1c1e21; --muted: #6b7280;
+		--accent: #0969da; --user: #dbeafe; --assistant: #ffffff; --border: #e2e4e8; --hover: #e7e9ee;
+		--active: #d8e6fb;
 	}
 	@media (prefers-color-scheme: dark) {
 		:root {
-			--bg: #14161a; --panel: #1e2127; --text: #e6e8eb; --muted: #9aa1aa;
-			--accent: #4493f8; --user: #1f3a5f; --assistant: #1e2127; --border: #30343b;
+			--bg: #14161a; --panel: #1e2127; --sidebar: #181b20; --text: #e6e8eb; --muted: #9aa1aa;
+			--accent: #4493f8; --user: #1f3a5f; --assistant: #1e2127; --border: #30343b; --hover: #272b32;
+			--active: #234064;
 		}
 	}
 	* { box-sizing: border-box; }
 	body {
 		margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-		background: var(--bg); color: var(--text); display: flex; flex-direction: column; height: 100vh;
+		background: var(--bg); color: var(--text); display: flex; height: 100vh; overflow: hidden;
 	}
+
+	/* Sidebar */
+	#sidebar {
+		width: 264px; flex: 0 0 264px; background: var(--sidebar); border-right: 1px solid var(--border);
+		display: flex; flex-direction: column; transition: margin-left 0.2s ease;
+	}
+	#sidebar .top { padding: 12px; border-bottom: 1px solid var(--border); }
+	#newBtn {
+		width: 100%; font: inherit; padding: 9px 12px; border-radius: 9px; border: 1px solid var(--border);
+		background: var(--accent); color: #fff; cursor: pointer; font-weight: 600;
+	}
+	#convList { flex: 1; overflow-y: auto; padding: 8px; }
+	.conv {
+		display: flex; align-items: center; gap: 6px; padding: 9px 10px; border-radius: 9px;
+		cursor: pointer; margin-bottom: 2px;
+	}
+	.conv:hover { background: var(--hover); }
+	.conv.active { background: var(--active); }
+	.conv .title {
+		flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px;
+	}
+	.conv .when { font-size: 11px; color: var(--muted); }
+	.conv .acts { display: none; gap: 2px; }
+	.conv:hover .acts { display: flex; }
+	.conv .acts button {
+		background: none; border: none; cursor: pointer; color: var(--muted); font-size: 13px;
+		padding: 2px 4px; border-radius: 6px; line-height: 1;
+	}
+	.conv .acts button:hover { background: var(--border); color: var(--text); }
+	#convEmpty { color: var(--muted); font-size: 13px; padding: 14px 10px; }
+
+	/* Main */
+	#main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
 	header {
-		display: flex; align-items: center; gap: 12px; padding: 10px 16px;
+		display: flex; align-items: center; gap: 10px; padding: 10px 16px;
 		background: var(--panel); border-bottom: 1px solid var(--border);
 	}
-	header h1 { font-size: 15px; margin: 0; flex: 1; }
-	header select, header button {
+	#menuBtn { display: none; font: inherit; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); cursor: pointer; }
+	header h1 { font-size: 15px; margin: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+	header select {
 		font: inherit; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border);
 		background: var(--bg); color: var(--text); cursor: pointer;
 	}
@@ -38,6 +74,7 @@
 	.msg.assistant { align-self: flex-start; background: var(--assistant); border-bottom-left-radius: 4px; }
 	.msg.error { align-self: center; color: #b91c1c; background: transparent; border-color: #b91c1c; }
 	.msg.pending { color: var(--muted); font-style: italic; }
+	#welcome { margin: auto; color: var(--muted); text-align: center; font-size: 14px; }
 	footer { padding: 12px 16px; background: var(--panel); border-top: 1px solid var(--border); }
 	form { display: flex; gap: 10px; }
 	textarea {
@@ -50,44 +87,84 @@
 	}
 	form button:disabled { opacity: 0.5; cursor: default; }
 	.hint { font-size: 12px; color: var(--muted); margin-top: 6px; }
+
+	#backdrop { display: none; }
+	@media (max-width: 720px) {
+		#sidebar {
+			position: fixed; z-index: 20; height: 100vh; left: 0; top: 0;
+			box-shadow: 2px 0 12px rgba(0,0,0,0.2);
+		}
+		body.nav-closed #sidebar { margin-left: -300px; box-shadow: none; }
+		#menuBtn { display: inline-block; }
+		body:not(.nav-closed) #backdrop {
+			display: block; position: fixed; inset: 0; background: rgba(0,0,0,0.35); z-index: 10;
+		}
+	}
 </style>
 </head>
-<body>
-<header>
-	<h1>Copilot Chat</h1>
-	<select id="model" title="Model"><option value="">default model</option></select>
-	<button id="reset" title="Start a new conversation">New conversation</button>
-</header>
-<div id="messages"></div>
-<footer>
-	<form id="form">
-		<textarea id="input" placeholder="Ask Copilot…" autofocus></textarea>
-		<button id="send" type="submit">Send</button>
-	</form>
-	<div class="hint">Enter to send, Shift+Enter for a new line. The conversation is kept on the server per session.</div>
-</footer>
+<body class="nav-closed">
+<aside id="sidebar">
+	<div class="top"><button id="newBtn">+ New conversation</button></div>
+	<div id="convList"><div id="convEmpty">Loading…</div></div>
+</aside>
+<div id="backdrop"></div>
+<div id="main">
+	<header>
+		<button id="menuBtn" title="Conversations">☰</button>
+		<h1 id="convTitle">Copilot Chat</h1>
+		<select id="model" title="Model"><option value="">default model</option></select>
+	</header>
+	<div id="messages"><div id="welcome">Start a new conversation or pick one from the list.</div></div>
+	<footer>
+		<form id="form">
+			<textarea id="input" placeholder="Ask Copilot…" autofocus></textarea>
+			<button id="send" type="submit">Send</button>
+		</form>
+		<div class="hint">Enter to send, Shift+Enter for a new line. Conversations are saved on the server.</div>
+	</footer>
+</div>
 <script>
 	const messagesEl = document.getElementById("messages");
 	const form = document.getElementById("form");
 	const input = document.getElementById("input");
 	const sendBtn = document.getElementById("send");
 	const modelEl = document.getElementById("model");
+	const convListEl = document.getElementById("convList");
+	const convTitleEl = document.getElementById("convTitle");
 
-	// One Copilot session per browser tab session; "New conversation" rotates it
-	function newSessionId() {
-		const id = (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2));
-		sessionStorage.setItem("copilotSession", id);
-		return id;
+	// activeId = the durable Copilot session id of the open conversation, or null for an unsent new one.
+	let activeId = localStorage.getItem("copilotActiveSession") || null;
+	let conversations = [];
+
+	function setActive(id) {
+		activeId = id;
+		if (id) localStorage.setItem("copilotActiveSession", id);
+		else localStorage.removeItem("copilotActiveSession");
 	}
-	let sessionId = sessionStorage.getItem("copilotSession") || newSessionId();
 
-	document.getElementById("reset").addEventListener("click", () => {
-		sessionId = newSessionId();
+	function fmtWhen(epochSeconds) {
+		if (!epochSeconds) return "";
+		const d = new Date(epochSeconds * 1000);
+		const today = new Date();
+		const sameDay = d.toDateString() === today.toDateString();
+		return sameDay
+			? d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+			: d.toLocaleDateString([], { month: "short", day: "numeric" });
+	}
+
+	function clearMessages(placeholder) {
 		messagesEl.innerHTML = "";
-		addMessage("assistant", "New conversation started.");
-	});
+		if (placeholder) {
+			const w = document.createElement("div");
+			w.id = "welcome";
+			w.textContent = placeholder;
+			messagesEl.appendChild(w);
+		}
+	}
 
 	function addMessage(role, text, cls) {
+		const welcome = document.getElementById("welcome");
+		if (welcome) welcome.remove();
 		const el = document.createElement("div");
 		el.className = "msg " + role + (cls ? " " + cls : "");
 		el.textContent = text;
@@ -96,6 +173,113 @@
 		return el;
 	}
 
+	function closeNavOnMobile() {
+		if (window.matchMedia("(max-width: 720px)").matches) document.body.classList.add("nav-closed");
+	}
+
+	// --- conversation list ---------------------------------------------------
+	function renderConversations() {
+		convListEl.innerHTML = "";
+		if (!conversations.length) {
+			const empty = document.createElement("div");
+			empty.id = "convEmpty";
+			empty.textContent = "No conversations yet.";
+			convListEl.appendChild(empty);
+			return;
+		}
+		for (const c of conversations) {
+			const row = document.createElement("div");
+			row.className = "conv" + (c.id === activeId ? " active" : "");
+			row.title = c.title || "(untitled)";
+
+			const title = document.createElement("div");
+			title.className = "title";
+			title.textContent = c.title || "(untitled)";
+			row.appendChild(title);
+
+			const when = document.createElement("div");
+			when.className = "when";
+			when.textContent = fmtWhen(c.updated);
+			row.appendChild(when);
+
+			const acts = document.createElement("div");
+			acts.className = "acts";
+			const renameB = document.createElement("button");
+			renameB.textContent = "✎"; renameB.title = "Rename";
+			renameB.addEventListener("click", (e) => { e.stopPropagation(); renameConversation(c); });
+			const delB = document.createElement("button");
+			delB.textContent = "🗑"; delB.title = "Delete";
+			delB.addEventListener("click", (e) => { e.stopPropagation(); deleteConversation(c); });
+			acts.appendChild(renameB); acts.appendChild(delB);
+			row.appendChild(acts);
+
+			row.addEventListener("click", () => selectConversation(c.id));
+			convListEl.appendChild(row);
+		}
+	}
+
+	async function loadConversations() {
+		try {
+			const res = await fetch("/sessions");
+			const json = await res.json();
+			conversations = json.data || [];
+		} catch { conversations = []; }
+		renderConversations();
+	}
+
+	async function selectConversation(id) {
+		setActive(id);
+		renderConversations();
+		closeNavOnMobile();
+		clearMessages("Loading…");
+		try {
+			const res = await fetch("/sessions/" + encodeURIComponent(id) + "/messages");
+			if (!res.ok) throw new Error("Could not load conversation");
+			const json = await res.json();
+			convTitleEl.textContent = json.title || "Copilot Chat";
+			if (json.model && [...modelEl.options].some((o) => o.value === json.model)) modelEl.value = json.model;
+			clearMessages();
+			for (const m of json.messages || []) addMessage(m.role === "user" ? "user" : "assistant", m.content);
+			if (!(json.messages || []).length) clearMessages("No messages yet.");
+		} catch (err) {
+			clearMessages();
+			addMessage("error", "Error: " + err.message);
+		}
+	}
+
+	function newConversation() {
+		setActive(null);
+		convTitleEl.textContent = "New conversation";
+		renderConversations();
+		clearMessages("Start a new conversation.");
+		closeNavOnMobile();
+		input.focus();
+	}
+
+	async function renameConversation(c) {
+		const title = prompt("Rename conversation", c.title || "");
+		if (title === null) return;
+		try {
+			await fetch("/sessions/" + encodeURIComponent(c.id), {
+				method: "PATCH",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ title })
+			});
+			if (c.id === activeId) convTitleEl.textContent = title;
+			await loadConversations();
+		} catch { /* ignore */ }
+	}
+
+	async function deleteConversation(c) {
+		if (!confirm("Delete this conversation? This cannot be undone.")) return;
+		try {
+			await fetch("/sessions/" + encodeURIComponent(c.id), { method: "DELETE" });
+		} catch { /* ignore */ }
+		if (c.id === activeId) newConversation();
+		await loadConversations();
+	}
+
+	// --- models --------------------------------------------------------------
 	async function loadModels() {
 		try {
 			const res = await fetch("/v1/models");
@@ -108,8 +292,8 @@
 			}
 		} catch { /* model list is optional */ }
 	}
-	loadModels();
 
+	// --- sending -------------------------------------------------------------
 	async function send() {
 		const prompt = input.value.trim();
 		if (!prompt || sendBtn.disabled) return;
@@ -122,7 +306,7 @@
 				method: "POST",
 				headers: {
 					"Content-Type": "application/json",
-					"X-Copilot-Session": sessionId
+					"X-Copilot-Session": activeId || "new"
 				},
 				body: JSON.stringify({
 					model: modelEl.value || undefined,
@@ -133,6 +317,13 @@
 			if (!res.ok) throw new Error(json.error?.message || res.statusText);
 			pending.classList.remove("pending");
 			pending.textContent = json.choices?.[0]?.message?.content || "(empty response)";
+
+			const resolvedId = res.headers.get("X-Copilot-Session-Id");
+			if (resolvedId && resolvedId !== activeId) {
+				setActive(resolvedId);
+				if (convTitleEl.textContent === "New conversation") convTitleEl.textContent = prompt.slice(0, 60);
+			}
+			await loadConversations();
 		} catch (err) {
 			pending.remove();
 			addMessage("error", "Error: " + err.message);
@@ -142,10 +333,24 @@
 		}
 	}
 
+	// --- wiring --------------------------------------------------------------
+	document.getElementById("newBtn").addEventListener("click", newConversation);
+	document.getElementById("menuBtn").addEventListener("click", () => document.body.classList.toggle("nav-closed"));
+	document.getElementById("backdrop").addEventListener("click", () => document.body.classList.add("nav-closed"));
 	form.addEventListener("submit", (event) => { event.preventDefault(); send(); });
 	input.addEventListener("keydown", (event) => {
 		if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); send(); }
 	});
+
+	(async function init() {
+		await loadModels();
+		await loadConversations();
+		if (activeId && conversations.some((c) => c.id === activeId)) {
+			selectConversation(activeId);
+		} else {
+			newConversation();
+		}
+	})();
 </script>
 </body>
 </html>

@@ -12,7 +12,19 @@
 		"verbs": "GET"
 	},
 	{
-		"class": "CopilotChatHTTPHandler",
+		"class": "CopilotChatWebHandler",
+		"method": "sessions",
+		"regexPattern": "^/sessions/?$",
+		"verbs": "GET"
+	},
+	{
+		"class": "CopilotChatWebHandler",
+		"method": "session",
+		"regexPattern": "^/sessions/.+",
+		"verbs": "GET,DELETE,PATCH"
+	},
+	{
+		"class": "CopilotChatWebHandler",
 		"method": "chatPage",
 		"pattern": "chat",
 		"verbs": "GET"

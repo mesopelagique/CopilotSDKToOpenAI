@@ -82,3 +82,8 @@ Logs/
 
 BUILD/
 Project/Sources/AIProviders.json
+
+#--------------------------------
+# Saved chat conversations (runtime data)
+#--------------------------------
+copilot-conversations.json

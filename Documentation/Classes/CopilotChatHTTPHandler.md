@@ -1,10 +1,15 @@
 # CopilotChatHTTPHandler
 
-HTTP request handlers exposing an OpenAI-compatible API backed by Copilot sessions.
+HTTP request handlers exposing the **OpenAI-compatible API** backed by Copilot sessions.
 
-Declared in `Project/Sources/HTTPHandlers.json`. Implemented as a **shared singleton**.
+Declared in `Project/Sources/HTTPHandlers.json`. Implemented as a **shared singleton** that
+`extends` [`CopilotChatHTTPHandlerBase`](#shared-base) for the worker-dispatch plumbing.
 
-Work is delegated to the `CopilotChat` worker (via `CopilotChatService`); each handler sends a task and waits on a signal for the result.
+The chat web interface (the `/chat` page and `/sessions` endpoints) lives in a separate handler,
+[CopilotChatWebHandler](CopilotChatWebHandler.md).
+
+Work is delegated to the `CopilotChat` worker (via `CopilotChatService`); each handler sends a
+task and waits on a signal for the result.
 
 ## Routes
 
@@ -12,7 +17,6 @@ Work is delegated to the `CopilotChat` worker (via `CopilotChatService`); each h
 |--------|------|---------|
 | `POST` | `/v1/chat/completions` | `chatCompletions` |
 | `GET`  | `/v1/models`           | `models`          |
-| `GET`  | `/chat`                | `chatPage`        |
 
 ## Public functions
 
@@ -26,6 +30,7 @@ Handles `POST /v1/chat/completions`. Parses the JSON body, resolves the session 
 
 - The `timeout` field in the request body extends the worker wait time by 10 seconds (default: 190 s).
 - Returns a standard OpenAI chat-completion response (JSON or SSE streaming).
+- The resolved durable conversation id is returned in the `X-Copilot-Session-Id` response header.
 
 ---
 
@@ -37,30 +42,7 @@ Function models($request : 4D.IncomingMessage) : 4D.OutgoingMessage
 
 Handles `GET /v1/models`. Dispatches a `"models"` task to the worker and returns the list of available Copilot models in OpenAI format.
 
----
-
-### `chatPage($request)`
-
-```
-Function chatPage($request : 4D.IncomingMessage) : 4D.OutgoingMessage
-```
-
-Handles `GET /chat`. Serves `copilot-chat.html` from the web root folder. Returns `404` if the file is not found.
-
 ## Private functions
-
-### `_dispatch($task, $timeout)`
-
-```
-Function _dispatch($task : Object; $timeout : Real) : 4D.OutgoingMessage
-```
-
-Sends a task object to the `CopilotChat` worker and blocks until the signal is triggered or `$timeout` seconds elapse.
-
-- Returns `504 Gateway Timeout` if the worker does not respond in time.
-- The worker stores its result as a JSON string in `signal.result` with the shape `{status; contentType; body}`.
-
----
 
 ### `_sessionKey($request)`
 
@@ -74,18 +56,18 @@ Resolves the session key used to identify the Copilot conversation, in priority 
 2. `Session.id` (4D web session)
 3. `"default"` as fallback
 
----
+## Shared base
 
-### `_error($status, $message)`
+`_dispatch($task; $timeout)` and `_error($status; $message)` are inherited from
+**`CopilotChatHTTPHandlerBase`** (a `shared` class):
 
-```
-Function _error($status : Integer; $message : Text) : 4D.OutgoingMessage
-```
-
-Builds an OpenAI-shaped JSON error response with the given HTTP status code and message.
-
-- Uses `"server_error"` type for `5xx` codes and `"invalid_request_error"` for all others.
+- `_dispatch` sends a task object to the `CopilotChat` worker and blocks until the signal is
+  triggered or `$timeout` seconds elapse. Returns `504 Gateway Timeout` on timeout, and copies a
+  `sessionId` field from the result into the `X-Copilot-Session-Id` header.
+- `_error` builds an OpenAI-shaped JSON error response (`"server_error"` for `5xx`,
+  `"invalid_request_error"` otherwise).
 
 ## See also
 
+- [CopilotChatWebHandler](CopilotChatWebHandler.md) — the chat web interface handlers.
 - [CopilotChatService](CopilotChatService.md) — the worker singleton that executes the tasks.
