@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?><preferences stamp="13">
+	<com.4d>
+		<interface>
+			<shortcuts>
+				<accept_input_form alt="false" command="false" ctrl="false" key_code="0" shift="false"/>
+				<cancel_input_form alt="false" command="false" ctrl="false" key_code="0" shift="false"/>
+				<add_subform alt="false" command="false" ctrl="false" key_code="0" shift="false"/>
+			</shortcuts>
+		</interface>
+		<general component_classStore_name="" execute_host_database_event="true"/>
+		<compiler>
+			<options symbol_file="true" syntax_file="false" target="all"/>
+		</compiler>
+		<server>
+			<network>
+				<options publish_at_startup="false"/>
+			</network>
+		</server>
+		<web>
+			<standalone_server>
+				<configuration port_number="31516" publish_at_startup="true"/>
+			</standalone_server>
+		</web>
+	</com.4d>
+</preferences>

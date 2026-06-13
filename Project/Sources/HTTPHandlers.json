@@ -1,0 +1,20 @@
+[
+	{
+		"class": "CopilotChatHTTPHandler",
+		"method": "chatCompletions",
+		"regexPattern": "/v1/chat/completions",
+		"verbs": "POST"
+	},
+	{
+		"class": "CopilotChatHTTPHandler",
+		"method": "models",
+		"regexPattern": "/v1/models",
+		"verbs": "GET"
+	},
+	{
+		"class": "CopilotChatHTTPHandler",
+		"method": "chatPage",
+		"pattern": "chat",
+		"verbs": "GET"
+	}
+]

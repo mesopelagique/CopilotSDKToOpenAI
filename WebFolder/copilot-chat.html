@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Copilot Chat — 4D</title>
+<style>
+	:root {
+		--bg: #f5f6f8; --panel: #ffffff; --text: #1c1e21; --muted: #6b7280;
+		--accent: #0969da; --user: #dbeafe; --assistant: #ffffff; --border: #e2e4e8;
+	}
+	@media (prefers-color-scheme: dark) {
+		:root {
+			--bg: #14161a; --panel: #1e2127; --text: #e6e8eb; --muted: #9aa1aa;
+			--accent: #4493f8; --user: #1f3a5f; --assistant: #1e2127; --border: #30343b;
+		}
+	}
+	* { box-sizing: border-box; }
+	body {
+		margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+		background: var(--bg); color: var(--text); display: flex; flex-direction: column; height: 100vh;
+	}
+	header {
+		display: flex; align-items: center; gap: 12px; padding: 10px 16px;
+		background: var(--panel); border-bottom: 1px solid var(--border);
+	}
+	header h1 { font-size: 15px; margin: 0; flex: 1; }
+	header select, header button {
+		font: inherit; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border);
+		background: var(--bg); color: var(--text); cursor: pointer;
+	}
+	#messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+	.msg {
+		max-width: 75%; padding: 10px 14px; border-radius: 14px; line-height: 1.45;
+		white-space: pre-wrap; word-wrap: break-word; border: 1px solid var(--border);
+	}
+	.msg.user { align-self: flex-end; background: var(--user); border-bottom-right-radius: 4px; }
+	.msg.assistant { align-self: flex-start; background: var(--assistant); border-bottom-left-radius: 4px; }
+	.msg.error { align-self: center; color: #b91c1c; background: transparent; border-color: #b91c1c; }
+	.msg.pending { color: var(--muted); font-style: italic; }
+	footer { padding: 12px 16px; background: var(--panel); border-top: 1px solid var(--border); }
+	form { display: flex; gap: 10px; }
+	textarea {
+		flex: 1; resize: none; font: inherit; padding: 10px 12px; border-radius: 10px;
+		border: 1px solid var(--border); background: var(--bg); color: var(--text); min-height: 44px; max-height: 160px;
+	}
+	form button {
+		font: inherit; padding: 0 18px; border: none; border-radius: 10px;
+		background: var(--accent); color: #fff; cursor: pointer;
+	}
+	form button:disabled { opacity: 0.5; cursor: default; }
+	.hint { font-size: 12px; color: var(--muted); margin-top: 6px; }
+</style>
+</head>
+<body>
+<header>
+	<h1>Copilot Chat</h1>
+	<select id="model" title="Model"><option value="">default model</option></select>
+	<button id="reset" title="Start a new conversation">New conversation</button>
+</header>
+<div id="messages"></div>
+<footer>
+	<form id="form">
+		<textarea id="input" placeholder="Ask Copilot…" autofocus></textarea>
+		<button id="send" type="submit">Send</button>
+	</form>
+	<div class="hint">Enter to send, Shift+Enter for a new line. The conversation is kept on the server per session.</div>
+</footer>
+<script>
+	const messagesEl = document.getElementById("messages");
+	const form = document.getElementById("form");
+	const input = document.getElementById("input");
+	const sendBtn = document.getElementById("send");
+	const modelEl = document.getElementById("model");
+
+	// One Copilot session per browser tab session; "New conversation" rotates it
+	function newSessionId() {
+		const id = (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2));
+		sessionStorage.setItem("copilotSession", id);
+		return id;
+	}
+	let sessionId = sessionStorage.getItem("copilotSession") || newSessionId();
+
+	document.getElementById("reset").addEventListener("click", () => {
+		sessionId = newSessionId();
+		messagesEl.innerHTML = "";
+		addMessage("assistant", "New conversation started.");
+	});
+
+	function addMessage(role, text, cls) {
+		const el = document.createElement("div");
+		el.className = "msg " + role + (cls ? " " + cls : "");
+		el.textContent = text;
+		messagesEl.appendChild(el);
+		messagesEl.scrollTop = messagesEl.scrollHeight;
+		return el;
+	}
+
+	async function loadModels() {
+		try {
+			const res = await fetch("/v1/models");
+			const json = await res.json();
+			for (const model of json.data || []) {
+				const opt = document.createElement("option");
+				opt.value = model.id;
+				opt.textContent = model.id;
+				modelEl.appendChild(opt);
+			}
+		} catch { /* model list is optional */ }
+	}
+	loadModels();
+
+	async function send() {
+		const prompt = input.value.trim();
+		if (!prompt || sendBtn.disabled) return;
+		input.value = "";
+		addMessage("user", prompt);
+		const pending = addMessage("assistant", "Thinking…", "pending");
+		sendBtn.disabled = true;
+		try {
+			const res = await fetch("/v1/chat/completions", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					"X-Copilot-Session": sessionId
+				},
+				body: JSON.stringify({
+					model: modelEl.value || undefined,
+					messages: [{ role: "user", content: prompt }]
+				})
+			});
+			const json = await res.json();
+			if (!res.ok) throw new Error(json.error?.message || res.statusText);
+			pending.classList.remove("pending");
+			pending.textContent = json.choices?.[0]?.message?.content || "(empty response)";
+		} catch (err) {
+			pending.remove();
+			addMessage("error", "Error: " + err.message);
+		} finally {
+			sendBtn.disabled = false;
+			input.focus();
+		}
+	}
+
+	form.addEventListener("submit", (event) => { event.preventDefault(); send(); });
+	input.addEventListener("keydown", (event) => {
+		if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); send(); }
+	});
+</script>
+</body>
+</html>

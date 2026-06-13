@@ -1,0 +1,13 @@
+{
+	"TESTS": {
+		"methods": [
+			"_onTestErrors",
+			"_runCopilotChatServerCLI",
+			"_runTest",
+			"_startCopilotChat",
+			"test_aikit",
+			"test_chat_service"
+		]
+	},
+	"trash": {}
+}

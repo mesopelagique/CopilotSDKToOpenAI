@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE base SYSTEM "http://www.4d.com/dtd/2007/base.dtd" >
+<base name="CopilotSDKToOpenAI" uuid="ACC63E6DF97A4977B66A16020642C600" collation_locale="en">
+	<schema name="DEFAULT_SCHEMA"/>
+</base>
