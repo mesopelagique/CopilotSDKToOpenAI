@@ -6,11 +6,13 @@
 property options : Object
 property client : cs:C1710.copilot.Client
 property sessions : Object
+property permissions : cs:C1710.ToolPermissions
 
 singleton Class constructor()
 	This:C1470.options:={}
 	This:C1470.client:=Null:C1517
 	This:C1470.sessions:={}
+	This:C1470.permissions:=Null:C1517
 	
 	// $task: {type: "configure"|"models"|"chat"; signal: 4D.Signal; ...}
 	// The response {status; contentType; body} is stored as JSON text in signal.result
@@ -41,11 +43,26 @@ Function handle($task : Object)
 	
 	// Options: cliPath, workingDirectory (text), gitHubToken, model (default),
 	// approveAll (Boolean, default False: tool permission requests are rejected),
+	// permissions (Object: allow/deny/ask rule policy, see cs.ToolPermissions),
+	// permissionsFile (Text: path to a JSON policy file with the same shape),
 	// tools (Collection of fixed server-side tool declarations/handlers)
 Function configure($options : Object)
 	This:C1470._resetState()
 	This:C1470.options:=$options || {}
-	
+	This:C1470.permissions:=This:C1470._buildPermissions()
+
+	// Builds the tool permission policy from options.permissions / options.permissionsFile,
+	// with options.approveAll as a blanket override kept for backward compatibility.
+Function _buildPermissions() : cs:C1710.ToolPermissions
+	var $permissions : cs:C1710.ToolPermissions:=cs:C1710.ToolPermissions.new(This:C1470.options.permissions)
+	If (Bool:C1537(This:C1470.options.approveAll))
+		$permissions.approveAll:=True:C214
+	End if
+	If (Length:C16(String:C10(This:C1470.options.permissionsFile))>0)
+		$permissions.loadFile(String:C10(This:C1470.options.permissionsFile))
+	End if
+	return $permissions
+
 Function _resetState()
 	var $sessionKey : Text
 	For each ($sessionKey; This:C1470.sessions)
@@ -199,10 +216,13 @@ Function _configuredTools() : Collection
 	return $tools
 	
 Function _decidePermission($permissionRequest : Object) : Object
+	If (This:C1470.permissions#Null:C1517)
+		return This:C1470.permissions.decide($permissionRequest)
+	End if
+	// configure() was never called: keep the safe default (reject everything)
 	If (Bool:C1537(This:C1470.options.approveAll))
 		return {kind: "approve-once"}
-	End if 
-	// TODO: here could have more complex all tools pattern
+	End if
 	return {kind: "reject"; feedback: "Tool execution is not allowed from the chat web server"}
 	
 	// OpenAI message content is either a text or a collection of parts ({type: "text"; text: ...})

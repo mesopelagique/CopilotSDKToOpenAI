@@ -37,7 +37,36 @@ Send a `configure` task to the `CopilotChatService` singleton (inside the `Copil
 | `useLoggedInUser` | Boolean | Use the currently logged-in GitHub account |
 | `model` | Text | Default model to use |
 | `approveAll` | Boolean | Auto-approve tool permission requests (default: `false`) |
+| `permissions` | Object | Allow/deny/ask tool policy — see [Tool permissions](#tool-permissions) |
+| `permissionsFile` | Text | Path to a JSON file holding the same `permissions` policy |
 | `tools` | Collection | Server-side tool declarations and handlers |
+
+## Tool permissions
+
+Instead of the blanket `approveAll`, you can whitelist (and blacklist) exactly which
+tools and commands a Copilot session may run, the way Claude's `settings.json` or the
+Copilot CLI allow-lists work. The policy is handled by the
+[`ToolPermissions`](Documentation/Classes/ToolPermissions.md) class and can be passed
+inline or loaded from a file:
+
+```4d
+$service.configure({\
+	permissions: {\
+		defaultDecision: "reject"; \
+		approveReadOnly: True; \
+		allow: ["Read"; "Shell(git status)"; "Shell(npm run test:*)"]; \
+		deny: ["Shell(rm:*)"; "Shell(curl:*)"; "Read(**/.env)"]; \
+		ask: ["Shell(git push:*)"]}})
+
+// …or load it from disk (same shape, see Resources/tool-permissions.example.json)
+$service.configure({permissionsFile: "/path/to/tool-permissions.json"})
+```
+
+Each rule is a `Target(pattern)` string. The target selects a Copilot permission kind
+(`Shell`/`Bash`, `Read`, `Write`, `Url`, `Mcp`, `Tool`, `Memory`, `*`, or a literal MCP/tool
+name); `pattern` is a glob (`*`, `?`, and Claude's `:*` suffix) matched against the command,
+path or URL. Resolution order: **deny** (always wins) → `approveAll` → **allow** →
+read-only auto-approve → **ask** → `defaultDecision`.
 
 ## Class reference
 
@@ -45,3 +74,4 @@ Send a `configure` task to the `CopilotChatService` singleton (inside the `Copil
 |-------|-------------|
 | [`CopilotChatHTTPHandler`](Documentation/Classes/CopilotChatHTTPHandler.md) | HTTP request handlers — routes incoming requests and returns responses |
 | [`CopilotChatService`](Documentation/Classes/CopilotChatService.md) | Worker singleton — manages Copilot client and per-session state |
+| [`ToolPermissions`](Documentation/Classes/ToolPermissions.md) | Allow/deny/ask tool policy — decides which tool & shell requests a session may run |

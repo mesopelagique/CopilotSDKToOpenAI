@@ -1,0 +1,25 @@
+{
+	"permissions": {
+		"defaultDecision": "reject",
+		"approveReadOnly": true,
+		"rejectFeedback": "This command is not allowed by the server tool policy",
+		"allow": [
+			"Read",
+			"Shell(git status)",
+			"Shell(git diff:*)",
+			"Shell(npm run test:*)",
+			"Shell(ls:*)",
+			"Write(WebFolder/**)"
+		],
+		"ask": [
+			"Shell(git push:*)"
+		],
+		"deny": [
+			"Shell(rm:*)",
+			"Shell(curl:*)",
+			"Shell(sudo:*)",
+			"Read(**/.env)",
+			"Url(*)"
+		]
+	}
+}
